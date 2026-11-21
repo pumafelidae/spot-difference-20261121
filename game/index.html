@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reef Hunt — Spot the Difference</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #0b1e2e; color: #eaf6ff; font-family: Georgia, 'Times New Roman', serif; }
+  body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+  #app { width: 100%; max-width: 1280px; padding: 10px 14px 8px; }
+
+  header { text-align: center; padding: 2px 0 8px; }
+  header h1 { font-size: 34px; letter-spacing: 4px; color: #ffd166; text-shadow: 0 2px 10px rgba(255, 209, 102, 0.35); }
+  header p { font-size: 14px; color: #9fd8ef; letter-spacing: 1px; }
+
+  /* ---- HUD ---- */
+  #hud { display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    background: #12324a; border: 1px solid #1f4d6b; border-radius: 10px;
+    padding: 8px 12px; margin-bottom: 10px; font-size: 15px; }
+  #hud-scene { font-weight: bold; color: #ffd166; flex: 1 1 auto; min-width: 200px; }
+  #hud-count { font-weight: bold; font-size: 18px; color: #ffffff; }
+  #hud-total { color: #9fd8ef; }
+  .timer-wrap { display: flex; align-items: center; gap: 8px; }
+  #hud-timer-bar { width: 130px; height: 12px; background: #0b1e2e; border-radius: 6px; overflow: hidden; border: 1px solid #1f4d6b; }
+  #hud-timer-fill { height: 100%; width: 100%; background: #4cc9f0; transition: width 0.5s linear; }
+  #hud-timer-fill.low { background: #ef476f; }
+  #hud-time { font-weight: bold; font-variant-numeric: tabular-nums; }
+  #hud-score, #hud-hints { font-weight: bold; }
+  #hud-hint-text { width: 100%; color: #ffd166; font-style: italic; min-height: 18px; font-size: 14px; }
+  button { font-family: inherit; font-size: 14px; font-weight: bold; cursor: pointer;
+    background: #ffd166; color: #3a2a00; border: none; border-radius: 8px; padding: 7px 12px; }
+  button:hover { background: #ffe08a; }
+  button.active { background: #4cc9f0; color: #06283a; }
+  button.ghost { background: #1f4d6b; color: #eaf6ff; }
+
+  /* ---- Game area: two panels side by side ---- */
+  #game-area { position: relative; display: flex; gap: 12px; }
+  .panel { position: relative; flex: 1 1 0; border-radius: 10px; overflow: hidden;
+    border: 2px solid #1f4d6b; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45); background: #12324a; }
+  .panel svg { display: block; width: 100%; height: auto; cursor: crosshair; }
+  .panel-badge { position: absolute; top: 8px; left: 8px; width: 30px; height: 30px; border-radius: 50%;
+    background: rgba(11, 30, 46, 0.75); color: #ffd166; font-weight: bold; font-size: 16px;
+    display: flex; align-items: center; justify-content: center; pointer-events: none;
+    border: 1px solid rgba(255, 209, 102, 0.6); }
+  .panel-badge.right { left: auto; right: 8px; }
+
+  /* ---- Difference strip ---- */
+  #diff-strip { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; min-height: 34px; }
+  .chip { background: #12324a; border: 1px solid #1f4d6b; color: #9fd8ef; border-radius: 16px;
+    padding: 5px 12px; font-size: 13px; }
+  .chip.found { background: #ffd166; border-color: #ffd166; color: #3a2a00; font-weight: bold; }
+
+  footer { text-align: center; color: #7fb3cc; font-size: 12px; padding: 8px 0 2px; }
+
+  /* ---- Overlays ---- */
+  .overlay { position: absolute; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center;
+    background: rgba(6, 20, 32, 0.82); border-radius: 10px; }
+  .overlay.hidden { display: none; }
+  .overlay-card { background: #12324a; border: 2px solid #ffd166; border-radius: 14px;
+    padding: 26px 34px; text-align: center; max-width: 520px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6); }
+  .overlay-card h2 { color: #ffd166; font-size: 28px; margin-bottom: 10px; }
+  .overlay-card p { margin-bottom: 12px; line-height: 1.5; color: #eaf6ff; }
+  .overlay-card .big { font-size: 18px; font-weight: bold; color: #ffffff; }
+  .overlay-card button { margin: 4px; font-size: 16px; padding: 10px 18px; }
+  .overlay-card .keys { font-size: 13px; color: #9fd8ef; margin-top: 12px; line-height: 1.7; }
+
+  /* ---- Magnifier lens, crosshair, wrong-click mark ---- */
+  #lens { position: absolute; z-index: 15; pointer-events: none; border-radius: 50%;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6); }
+  #lens.hidden { display: none; }
+  #crosshair { position: absolute; z-index: 14; width: 32px; height: 32px; pointer-events: none;
+    border: 2px solid #ffd166; border-radius: 50%; box-shadow: 0 0 0 2px rgba(122, 74, 0, 0.6); }
+  #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #ffd166; }
+  #crosshair::before { left: 14px; top: 2px; width: 2px; height: 26px; }
+  #crosshair::after { top: 14px; left: 2px; height: 2px; width: 26px; }
+  #crosshair.hidden { display: none; }
+  #wrong-mark { position: absolute; z-index: 14; width: 28px; height: 28px; pointer-events: none;
+    color: #ef476f; font-size: 26px; font-weight: bold; text-align: center; line-height: 28px;
+    text-shadow: 0 0 6px rgba(0, 0, 0, 0.7); }
+  #wrong-mark.hidden { display: none; }
+  #wrong-mark.fade { animation: wrongfade 0.7s ease-out forwards; }
+  @keyframes wrongfade { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(1.4); } }
+
+  /* Hint pulse ring */
+  .hint-ring { animation: hintpulse 0.55s ease-in-out infinite alternate; }
+  @keyframes hintpulse { from { opacity: 0.5; } to { opacity: 1; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🪸 REEF HUNT</h1>
+    <p>Spot the difference — two reefs, seven differences, one sharp eye</p>
+  </header>
+
+  <div id="hud">
+    <span id="hud-scene">Sunlit Reef</span>
+    <span id="hud-count">Found 0 / 7</span>
+    <span id="hud-total">Total found 0 / 21</span>
+    <span class="timer-wrap">
+      <span id="hud-timer-bar"><span id="hud-timer-fill"></span></span>
+      <span id="hud-time">3:00</span>
+    </span>
+    <span id="hud-score">Score 0</span>
+    <span id="hud-hints">Hints 3</span>
+    <button id="btn-hint" title="Hint (H) — costs 10 seconds">💡 Hint (H)</button>
+    <button id="btn-magnifier" title="Magnifier (M)">🔍 Lens (M)</button>
+    <button id="btn-mute" class="ghost" title="Sound (U)">🔊 Sound on</button>
+    <span id="hud-hint-text"></span>
+  </div>
+
+  <div id="game-area">
+    <div class="panel">
+      <span class="panel-badge">A</span>
+      <svg id="panel-left" viewBox="0 0 640 480" role="img" aria-label="Left reef panel">
+        <g id="art-left"></g>
+        <g id="marks-left"></g>
+        <g id="hint-left"></g>
+      </svg>
+    </div>
+    <div class="panel">
+      <span class="panel-badge right">B</span>
+      <svg id="panel-right" viewBox="0 0 640 480" role="img" aria-label="Right reef panel">
+        <g id="art-right"></g>
+        <g id="marks-right"></g>
+        <g id="hint-right"></g>
+      </svg>
+    </div>
+
+    <div id="lens" class="hidden"><svg id="lens-svg" width="180" height="180" viewBox="0 0 180 180"></svg></div>
+    <div id="crosshair" class="hidden"></div>
+    <div id="wrong-mark" class="hidden">✕</div>
+
+    <div id="overlay-title" class="overlay">
+      <div class="overlay-card">
+        <h2>🪸 Reef Hunt</h2>
+        <p>Two reefs sit side by side — but they are not identical.
+        <b>Seven differences</b> hide in each reef. Click a difference on
+        either panel to mark it. Clear all three reefs to win.</p>
+        <p>Hints cost 10 seconds. The lens zooms in close. The clock
+        is always running.</p>
+        <button id="btn-start">▶ Start diving</button>
+        <p class="keys">Mouse: click a difference &nbsp;·&nbsp; H: hint &nbsp;·&nbsp; M: lens<br>
+        Arrow keys: move the crosshair &nbsp;·&nbsp; Enter: check &nbsp;·&nbsp; Tab: switch panel<br>
+        U: sound &nbsp;·&nbsp; R: restart the reef</p>
+      </div>
+    </div>
+
+    <div id="overlay-scene-done" class="overlay hidden">
+      <div class="overlay-card">
+        <h2 id="scene-done-title">Reef complete!</h2>
+        <p id="scene-done-text"></p>
+        <p class="big" id="scene-done-score"></p>
+        <button id="btn-next-scene">Next reef</button>
+      </div>
+    </div>
+
+    <div id="overlay-time-up" class="overlay hidden">
+      <div class="overlay-card">
+        <h2>⏱ Time's up!</h2>
+        <p id="time-up-text"></p>
+        <button id="btn-retry-scene">↻ Retry this reef</button>
+        <button id="btn-skip-scene" class="ghost">Move on</button>
+      </div>
+    </div>
+
+    <div id="overlay-game-done" class="overlay hidden">
+      <div class="overlay-card">
+        <h2>🏆 All reefs cleared!</h2>
+        <p class="big" id="game-done-score"></p>
+        <p id="game-done-found"></p>
+        <p>Sharp eyes, diver. The reef keeps its secrets from most — not from you.</p>
+        <button id="btn-play-again">↻ Dive again</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="diff-strip"></div>
+
+  <footer>Reef Hunt — an original spot-the-difference game. Three reefs, seven differences each.
+  Click, hint, lens, keyboard — however you hunt, the reef is watching.</footer>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
